@@ -1,0 +1,62 @@
+name: Build Windows Installer
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-msi:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Download JAR from release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          gh release download "${{ github.event.release.tag_name }}" \
+            --pattern "downloadmanager.jar" \
+            --dir staging
+
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build MSI
+        shell: bash
+        run: |
+          mkdir -p target/installers
+          jpackage \
+            --input staging \
+            --main-jar downloadmanager.jar \
+            --main-class org.bfabric.DownloadManager \
+            --name "B-Fabric Download Manager" \
+            --app-version "${{ steps.version.outputs.version }}" \
+            --vendor "Functional Genomics Center Zurich" \
+            --icon packaging/icons/bfabric.png \
+            --win-shortcut --win-menu \
+            --type msi \
+            --dest target/installers
+
+      - name: Rename MSI
+        shell: bash
+        run: |
+          for f in target/installers/*.msi; do
+            mv "$f" "target/installers/B-Fabric.Download.Manager-${{ steps.version.outputs.version }}.msi"
+          done
+
+      - name: Upload MSI to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            target/installers/*.msi \
+            --clobber
