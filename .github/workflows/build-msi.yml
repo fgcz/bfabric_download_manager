@@ -37,7 +37,7 @@ jobs:
         shell: bash
         run: echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Build MSI
+      - name: Build MSI (step 1 — generate WiX source)
         shell: bash
         run: |
           mkdir -p target/installers
@@ -51,6 +51,46 @@ jobs:
             --icon packaging/icons/bfabric.png \
             --win-shortcut --win-menu \
             --type msi \
+            --dest target/installers \
+            --temp target/jpackage-temp
+
+      - name: Patch WiX source with protocol handler
+        shell: bash
+        run: |
+          WXS="target/jpackage-temp/config/main.wxs"
+          [ -f "$WXS" ] || { echo "ERROR: main.wxs not found at $WXS"; exit 1; }
+          mkdir -p target/win-resources
+          cp "$WXS" target/win-resources/main.wxs
+
+          # Add ComponentRef to Feature
+          sed -i '/<\/Feature>/i \                <ComponentRef Id="ProtocolHandler" \/>' target/win-resources/main.wxs
+
+          # Add registry component before </Product>
+          sed -i '/<\/Product>/i \
+          <DirectoryRef Id="INSTALLDIR">\
+              <Component Id="ProtocolHandler" Guid="{f495f482-7db3-48f2-900f-795460f15d95}" Win64="yes">\
+                  <RegistryKey Root="HKCU" Key="Software\\Classes\\bfabric-download" ForceCreateOnInstall="yes" ForceDeleteOnUninstall="yes">\
+                      <RegistryValue Type="string" Value="URL:B-Fabric Download Protocol" \/>\
+                      <RegistryValue Name="URL Protocol" Type="string" Value="" \/>\
+                  <\/RegistryKey>\
+                  <RegistryKey Root="HKCU" Key="Software\\Classes\\bfabric-download\\shell\\open\\command" ForceCreateOnInstall="yes" ForceDeleteOnUninstall="yes">\
+                      <RegistryValue Type="string" Value="&quot;[INSTALLDIR]B-Fabric Download Manager.exe&quot; &quot;%1&quot;" \/>\
+                  <\/RegistryKey>\
+              <\/Component>\
+          <\/DirectoryRef>' target/win-resources/main.wxs
+
+      - name: Rebuild MSI with patched WiX source
+        shell: bash
+        run: |
+          rm -f target/installers/*.msi
+          jpackage \
+            --type msi \
+            --name "B-Fabric Download Manager" \
+            --app-version "${{ steps.version.outputs.version }}" \
+            --app-image "target/installers/B-Fabric Download Manager" \
+            --resource-dir target/win-resources \
+            --win-shortcut --win-menu \
+            --vendor "Functional Genomics Center Zurich" \
             --dest target/installers
 
       - name: Rename MSI
