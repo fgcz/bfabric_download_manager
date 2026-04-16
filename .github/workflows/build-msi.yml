@@ -83,11 +83,13 @@ jobs:
         shell: bash
         run: |
           rm -f target/installers/*.msi
+          APP_IMAGE="target/jpackage-temp/images/win-msi.image/B-Fabric Download Manager"
+          [ -d "$APP_IMAGE" ] || { echo "ERROR: app-image not found, listing temp:"; find target/jpackage-temp -maxdepth 4 -type d; exit 1; }
           jpackage \
             --type msi \
             --name "B-Fabric Download Manager" \
             --app-version "${{ steps.version.outputs.version }}" \
-            --app-image "target/installers/B-Fabric Download Manager" \
+            --app-image "$APP_IMAGE" \
             --resource-dir target/win-resources \
             --win-shortcut --win-menu \
             --vendor "Functional Genomics Center Zurich" \
