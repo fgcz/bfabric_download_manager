@@ -99,7 +99,7 @@ jobs:
         shell: bash
         run: |
           for f in target/installers/*.msi; do
-            mv "$f" "target/installers/B-Fabric.Download.Manager-${{ steps.version.outputs.version }}.msi"
+            mv "$f" "target/installers/B-Fabric.Download.Manager-${{ steps.version.outputs.version }}-github.msi"
           done
 
       - name: Upload MSI to release
